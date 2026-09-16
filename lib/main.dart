@@ -633,7 +633,7 @@ class _BlackjackTableState extends State<BlackjackTable> {
       final insTriggered = insDev != null && tc >= insDev.threshold;
       if (insTriggered) {
         lines.add('⚡ Deviation: dealer shows an Ace and the true count is '
-            '${tc.toStringAsFixed(1)} (≥ ${insDev!.threshold}) — basic strategy '
+            '${tc.toStringAsFixed(1)} (≥ ${insDev.threshold}) — basic strategy '
             'says skip insurance, but at this count taking it is profitable.');
       } else {
         lines.add("Dealer shows an Ace — basic strategy says don't take "
