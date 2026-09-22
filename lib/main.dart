@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'package:playing_cards/playing_cards.dart' as pcw;
 
 // ---------------------------------------------------------------------------
 // Card model
@@ -45,6 +46,25 @@ extension RankInfo on Rank {
       default: return (index + 2).toString();
     }
   }
+
+  /// Maps this app's Rank onto the playing_cards package's CardValue enum.
+  pcw.CardValue get pkgValue {
+    switch (this) {
+      case Rank.two: return pcw.CardValue.two;
+      case Rank.three: return pcw.CardValue.three;
+      case Rank.four: return pcw.CardValue.four;
+      case Rank.five: return pcw.CardValue.five;
+      case Rank.six: return pcw.CardValue.six;
+      case Rank.seven: return pcw.CardValue.seven;
+      case Rank.eight: return pcw.CardValue.eight;
+      case Rank.nine: return pcw.CardValue.nine;
+      case Rank.ten: return pcw.CardValue.ten;
+      case Rank.jack: return pcw.CardValue.jack;
+      case Rank.queen: return pcw.CardValue.queen;
+      case Rank.king: return pcw.CardValue.king;
+      case Rank.ace: return pcw.CardValue.ace;
+    }
+  }
 }
 
 extension SuitInfo on Suit {
@@ -56,6 +76,16 @@ extension SuitInfo on Suit {
       case Suit.spades: return '♠';
     }
   }
+
+  /// Maps this app's Suit onto the playing_cards package's Suit enum.
+  pcw.Suit get pkgSuit {
+    switch (this) {
+      case Suit.hearts: return pcw.Suit.hearts;
+      case Suit.diamonds: return pcw.Suit.diamonds;
+      case Suit.clubs: return pcw.Suit.clubs;
+      case Suit.spades: return pcw.Suit.spades;
+    }
+  }
 }
 
 class PlayingCard {
@@ -64,6 +94,10 @@ class PlayingCard {
   const PlayingCard(this.rank, this.suit);
 
   String get text => '${rank.label}${suit.symbol}';
+
+  /// This card as the playing_cards package's own PlayingCard type, so it
+  /// can be handed straight to a pcw.PlayingCardView.
+  pcw.PlayingCard get pkgCard => pcw.PlayingCard(suit.pkgSuit, rank.pkgValue);
 
   @override
   String toString() => text;
@@ -760,8 +794,35 @@ class _BlackjackTableState extends State<BlackjackTable> {
 
   // --- UI ----------------------------------------------------------------
 
-  String _cardListText(List<PlayingCard> hand) =>
-      hand.map((c) => c.text).join('  ');
+  /// Renders a single card face-up using the playing_cards package.
+  /// [faceDown] shows the card back instead — used for the dealer's
+  /// hidden hole card while the player is still acting.
+  Widget _cardImage(PlayingCard card, {double width = 112, bool faceDown = false}) {
+    return SizedBox(
+      width: width,
+      child: pcw.PlayingCardView(
+        card: card.pkgCard,
+        showBack: faceDown,
+      ),
+    );
+  }
+
+  /// Renders a whole hand as a wrapped row of card widgets. Pass
+  /// [hiddenFromIndex] to face-down every card from that index onward
+  /// (used for the dealer's hole card); -1 shows everything face-up.
+  Widget _cardRow(List<PlayingCard> cards, {int hiddenFromIndex = -1}) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (var i = 0; i < cards.length; i++)
+          _cardImage(
+            cards[i],
+            faceDown: hiddenFromIndex >= 0 && i >= hiddenFromIndex,
+          ),
+      ],
+    );
+  }
 
   List<Widget> _buildPlayerHandWidgets() {
     if (playerHands.isEmpty) {
@@ -788,7 +849,10 @@ class _BlackjackTableState extends State<BlackjackTable> {
               '$label${isActive ? '  (active)' : ''} — Bet: ${hand.wager}',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            Text(_cardListText(hand.cards), style: const TextStyle(fontSize: 20)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: _cardRow(hand.cards),
+            ),
             Text('Total: ${hand.total}'),
           ],
         ),
@@ -799,9 +863,6 @@ class _BlackjackTableState extends State<BlackjackTable> {
   @override
   Widget build(BuildContext context) {
     final hideDealerHole = phase == GamePhase.playerTurn;
-    final dealerText = hideDealerHole
-        ? '${dealerHand.isNotEmpty ? dealerHand[0].text : ''}  ??'
-        : _cardListText(dealerHand);
     final dealerTotalText = hideDealerHole
         ? '${dealerHand.isNotEmpty ? dealerHand[0].rank.blackjackValue : 0} + ?'
         : '${handValue(dealerHand)}';
@@ -851,8 +912,15 @@ class _BlackjackTableState extends State<BlackjackTable> {
             // Dealer
             Text('Dealer', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 4),
-            Text(dealerHand.isEmpty ? '—' : dealerText,
-                style: const TextStyle(fontSize: 22)),
+            dealerHand.isEmpty
+                ? const Text('—', style: TextStyle(fontSize: 22))
+                : Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: _cardRow(
+                dealerHand,
+                hiddenFromIndex: hideDealerHole ? 1 : -1,
+              ),
+            ),
             Text('Total: $dealerTotalText'),
 
             const Divider(height: 32),
