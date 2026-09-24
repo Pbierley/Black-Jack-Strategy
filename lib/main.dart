@@ -366,7 +366,7 @@ void main() {
         appBar: PreferredSize(
           preferredSize: Size.fromHeight(56),
           child: AppBar(
-            title: Text("NKU Blackjack Trainer"),
+            title: Text("Blackjack Strategy & Card Counting Trainer"),
             backgroundColor: Colors.blue,
           ),
         ),
@@ -405,6 +405,37 @@ class _BlackjackTableState extends State<BlackjackTable> {
 
   GamePhase phase = GamePhase.betting;
   String message = 'Place your bet and press Deal.';
+
+  void _showStrategySheet() {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            InteractiveViewer(
+              panEnabled: true,
+              minScale: 0.8,
+              maxScale: 4.0,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpYdAyOg0fyY2PH_xrR6jvdtscpG-UUWbGcJXTxP-3yQ&s=10',
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 30),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   /// The hand currently awaiting a decision, or null if none (not the
   /// player's turn, or no hands yet).
@@ -970,6 +1001,11 @@ class _BlackjackTableState extends State<BlackjackTable> {
                   icon: const Icon(Icons.lightbulb_outline),
                   label: const Text('Hint'),
                 ),
+                OutlinedButton.icon(
+                  onPressed: _showStrategySheet,
+                  icon: const Icon(Icons.grid_on),
+                  label: const Text('Strategy Sheet'),
+                ),
               ],
             ),
 
@@ -996,9 +1032,6 @@ class _BlackjackTableState extends State<BlackjackTable> {
 
             const SizedBox(height: 24),
 
-            Image.network(
-              'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpYdAyOg0fyY2PH_xrR6jvdtscpG-UUWbGcJXTxP-3yQ&s=10',
-            ),
           ],
         ),
       ),
