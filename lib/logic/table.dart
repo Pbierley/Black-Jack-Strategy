@@ -1,7 +1,7 @@
 import 'package:blackjack/logic/card.dart';
 import 'package:blackjack/logic/shoe.dart';
+import 'package:blackjack/logic/UI.dart';
 import 'package:flutter/material.dart';
-import 'package:playing_cards/playing_cards.dart' as pcw;
 
 
 /// betting     -> choosing a bet, waiting to press Deal
@@ -33,37 +33,6 @@ class _BlackjackTableState extends State<BlackjackTable> {
 
   GamePhase phase = GamePhase.betting;
   String message = 'Place your bet and press Deal.';
-
-  void _showStrategySheet() {
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16),
-        child: Stack(
-          alignment: Alignment.topRight,
-          children: [
-            InteractiveViewer(
-              panEnabled: true,
-              minScale: 0.8,
-              maxScale: 4.0,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpYdAyOg0fyY2PH_xrR6jvdtscpG-UUWbGcJXTxP-3yQ&s=10',
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close, color: Colors.white, size: 30),
-              onPressed: () => Navigator.of(ctx).pop(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   /// The hand currently awaiting a decision, or null if none (not the
   /// player's turn, or no hands yet).
@@ -337,23 +306,10 @@ class _BlackjackTableState extends State<BlackjackTable> {
     return lines.join('\n\n');
   }
 
-  void _showHint() {
+  String _hintText() {
     final hand = _activeHand;
-    if (hand == null || dealerHand.isEmpty) return;
-    final advice = _basicStrategyHint(hand, dealerHand[0]);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Basic Strategy Hint'),
-        content: SingleChildScrollView(child: Text(advice)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
+    if (hand == null || dealerHand.isEmpty) return '';
+    return _basicStrategyHint(hand, dealerHand[0]);
   }
 
   /// Moves to the next unfinished player hand, or to the dealer's turn
@@ -451,218 +407,42 @@ class _BlackjackTableState extends State<BlackjackTable> {
     });
   }
 
-  // --- UI ----------------------------------------------------------------
-
-  /// Renders a single card face-up using the playing_cards package.
-  /// [faceDown] shows the card back instead — used for the dealer's
-  /// hidden hole card while the player is still acting.
-  Widget _cardImage(PlayingCard card, {double width = 112, bool faceDown = false}) {
-    return SizedBox(
-      width: width,
-      child: pcw.PlayingCardView(
-        card: card.pkgCard,
-        showBack: faceDown,
-      ),
-    );
-  }
-
-  /// Renders a whole hand as a wrapped row of card widgets. Pass
-  /// [hiddenFromIndex] to face-down every card from that index onward
-  /// (used for the dealer's hole card); -1 shows everything face-up.
-  Widget _cardRow(List<PlayingCard> cards, {int hiddenFromIndex = -1}) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        for (var i = 0; i < cards.length; i++)
-          _cardImage(
-            cards[i],
-            faceDown: hiddenFromIndex >= 0 && i >= hiddenFromIndex,
-          ),
-      ],
-    );
-  }
-
-  List<Widget> _buildPlayerHandWidgets() {
-    if (playerHands.isEmpty) {
-      return const [Text('—', style: TextStyle(fontSize: 22))];
-    }
-    return List.generate(playerHands.length, (i) {
-      final hand = playerHands[i];
-      final isActive = phase == GamePhase.playerTurn && i == activeHandIndex;
-      final label = playerHands.length > 1 ? 'Hand ${i + 1}' : 'Your Hand';
-      return Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: isActive ? Colors.blue : Colors.transparent,
-            width: 2,
-          ),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$label${isActive ? '  (active)' : ''} — Bet: ${hand.wager}',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: _cardRow(hand.cards),
-            ),
-            Text('Total: ${hand.total}'),
-          ],
-        ),
-      );
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final hideDealerHole = phase == GamePhase.playerTurn;
-    final dealerTotalText = hideDealerHole
-        ? '${dealerHand.isNotEmpty ? dealerHand[0].rank.blackjackValue : 0} + ?'
-        : '${handValue(dealerHand)}';
-
     final hand = _activeHand;
     final canDeal = phase == GamePhase.betting && bankroll >= currentBet;
-    final canBet = phase == GamePhase.betting;
-    final canAct = hand != null;
-    final canDouble = hand != null && hand.cards.length == 2 && bankroll >= hand.wager;
+    final canDouble = hand != null &&
+        hand.cards.length == 2 &&
+        bankroll >= hand.wager;
     final canSplit = hand != null &&
         hand.cards.length == 2 &&
         hand.cards[0].rank.blackjackValue == hand.cards[1].rank.blackjackValue &&
         bankroll >= hand.wager &&
         playerHands.length < maxHandsFromSplits;
 
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Bankroll / bet controls
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Bankroll: $bankroll units',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                Row(
-                  children: [
-                    Text('Bet: $currentBet',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    IconButton(
-                      icon: const Icon(Icons.remove_circle_outline),
-                      onPressed: canBet ? _decreaseBet : null,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add_circle_outline),
-                      onPressed: canBet ? _increaseBet : null,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            const Divider(height: 24),
-
-            // Dealer
-            Text('Dealer', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 4),
-            dealerHand.isEmpty
-                ? const Text('—', style: TextStyle(fontSize: 22))
-                : Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: _cardRow(
-                dealerHand,
-                hiddenFromIndex: hideDealerHole ? 1 : -1,
-              ),
-            ),
-            Text('Total: $dealerTotalText'),
-
-            const Divider(height: 32),
-
-            // Player hand(s)
-            Text('Your Hand${playerHands.length > 1 ? 's' : ''}',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 4),
-            ..._buildPlayerHandWidgets(),
-
-            const Divider(height: 8),
-
-            // Status / message
-            Text(message,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-
-            const SizedBox(height: 16),
-
-            // Controls
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ElevatedButton(
-                  onPressed: canDeal ? _deal : null,
-                  child: const Text('Deal'),
-                ),
-                ElevatedButton(
-                  onPressed: canAct ? _hit : null,
-                  child: const Text('Hit'),
-                ),
-                ElevatedButton(
-                  onPressed: canAct ? _stand : null,
-                  child: const Text('Stand'),
-                ),
-                ElevatedButton(
-                  onPressed: canDouble ? _double : null,
-                  child: const Text('Double'),
-                ),
-                ElevatedButton(
-                  onPressed: canSplit ? _split : null,
-                  child: const Text('Split'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: canAct ? _showHint : null,
-                  icon: const Icon(Icons.lightbulb_outline),
-                  label: const Text('Hint'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _showStrategySheet,
-                  icon: const Icon(Icons.grid_on),
-                  label: const Text('Strategy Sheet'),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            Center(
-              child: TextButton(
-                onPressed: _restart,
-                child: const Text('Restart Game'),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Shoe info — handy while you're testing the counting logic
-            Text(
-              'Cards remaining in shoe: ${shoe.cardsRemaining} / ${shoe.totalCards}',
-              style: const TextStyle(color: Colors.grey),
-            ),
-            Text(
-              'Running count: ${shoe.runningCount}   True count: ${shoe.trueCount.toStringAsFixed(2)}',
-              style: const TextStyle(color: Colors.grey),
-            ),
-
-            const SizedBox(height: 24),
-
-          ],
-        ),
-      ),
+    return UI(
+      playerHands: playerHands,
+      activeHandIndex: activeHandIndex,
+      dealerHand: dealerHand,
+      bankroll: bankroll,
+      currentBet: currentBet,
+      message: message,
+      shoe: shoe,
+      isBetting: phase == GamePhase.betting,
+      isPlayerTurn: phase == GamePhase.playerTurn,
+      canDeal: canDeal,
+      canAct: hand != null,
+      canDouble: canDouble,
+      canSplit: canSplit,
+      onIncreaseBet: _increaseBet,
+      onDecreaseBet: _decreaseBet,
+      onDeal: _deal,
+      onHit: _hit,
+      onStand: _stand,
+      onDouble: _double,
+      onSplit: _split,
+      hintText: _hintText,
+      onRestart: _restart,
     );
   }
 }
