@@ -1,12 +1,15 @@
 import 'package:blackjack/logic/card.dart';
 import 'package:blackjack/logic/shoe.dart';
+import 'package:blackjack/logic/table_background.dart';
 import 'package:flutter/material.dart';
 import 'package:playing_cards/playing_cards.dart' as pcw;
 
-class UI extends StatelessWidget {
-  static const _backgroundImageUrl =
-      'https://media.istockphoto.com/id/182457915/photo/blackjack-table.jpg?s=612x612&w=0&k=20&c=WyQiGvcTFmcTig5EonBJLvcX5VN3FdAgUGj9cFyUE2g=';
+/// Formats a unit amount without a trailing ".0" on whole numbers.
+String formatUnits(num units) => units == units.roundToDouble()
+    ? units.round().toString()
+    : units.toStringAsFixed(1);
 
+class UI extends StatelessWidget {
   const UI({
     super.key,
     required this.playerHands,
@@ -18,6 +21,11 @@ class UI extends StatelessWidget {
     required this.shoe,
     required this.isBetting,
     required this.isPlayerTurn,
+    required this.isInsuranceOffer,
+    required this.insuranceCost,
+    required this.canInsure,
+    required this.onTakeInsurance,
+    required this.onDeclineInsurance,
     required this.canDeal,
     required this.canAct,
     required this.canDouble,
@@ -36,12 +44,17 @@ class UI extends StatelessWidget {
   final List<PlayerHand> playerHands;
   final int activeHandIndex;
   final List<PlayingCard> dealerHand;
-  final int bankroll;
+  final double bankroll;
   final int currentBet;
   final String message;
   final Shoe shoe;
   final bool isBetting;
   final bool isPlayerTurn;
+  final bool isInsuranceOffer;
+  final double insuranceCost;
+  final bool canInsure;
+  final VoidCallback onTakeInsurance;
+  final VoidCallback onDeclineInsurance;
   final bool canDeal;
   final bool canAct;
   final bool canDouble;
@@ -55,6 +68,8 @@ class UI extends StatelessWidget {
   final VoidCallback onSplit;
   final String Function() hintText;
   final VoidCallback onRestart;
+
+  bool get _holeCardHidden => isPlayerTurn || isInsuranceOffer;
 
   void _showHint(BuildContext context) {
     final advice = hintText();
@@ -202,7 +217,7 @@ class UI extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: _cardRow(
                   dealerHand,
-                  hiddenFromIndex: isPlayerTurn ? 1 : -1,
+                  hiddenFromIndex: _holeCardHidden ? 1 : -1,
                   cardWidth: cardWidth,
                 ),
               ),
@@ -250,7 +265,7 @@ class UI extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'Bankroll: $bankroll units',
+          'Bankroll: ${formatUnits(bankroll)} units',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           textAlign: TextAlign.center,
         ),
@@ -359,6 +374,16 @@ class UI extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
+        if (isInsuranceOffer) ...[
+          ElevatedButton(
+            onPressed: canInsure ? onTakeInsurance : null,
+            child: Text('Insurance (${formatUnits(insuranceCost)})'),
+          ),
+          ElevatedButton(
+            onPressed: onDeclineInsurance,
+            child: const Text('No Insurance'),
+          ),
+        ],
         ElevatedButton(
           onPressed: canDeal ? onDeal : null,
           child: const Text('Deal'),
@@ -380,7 +405,9 @@ class UI extends StatelessWidget {
           child: const Text('Split'),
         ),
         OutlinedButton.icon(
-          onPressed: canAct ? () => _showHint(context) : null,
+          onPressed: canAct || isInsuranceOffer
+              ? () => _showHint(context)
+              : null,
           icon: const Icon(Icons.lightbulb_outline),
           label: const Text('Hint'),
         ),
@@ -395,7 +422,7 @@ class UI extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dealerTotalText = isPlayerTurn
+    final dealerTotalText = _holeCardHidden
         ? '${dealerHand.isNotEmpty ? dealerHand[0].rank.blackjackValue : 0} + ?'
         : '${handValue(dealerHand)}';
     final theme = Theme.of(context);
@@ -407,8 +434,7 @@ class UI extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Image.network(_backgroundImageUrl, fit: BoxFit.cover),
-        const ColoredBox(color: Color(0x66000000)),
+        const TableBackground(),
         Theme(
           data: theme.copyWith(
             textTheme: textTheme,
@@ -442,8 +468,10 @@ class UI extends StatelessWidget {
                 final maxDealerCards = dealerHand.length.clamp(1, 5);
                 final maxPlayerCardsPerRow = maxCardsInHand.clamp(1, 4);
                 final estimatedRows = 1 + (isWide ? 1 : handCount);
+                final markingsHeight = TableMarkings.heightFor(availableWidth);
                 final heightBasedCardWidth =
-                    (constraints.maxHeight / (4.4 + estimatedRows * 1.45))
+                    ((constraints.maxHeight - markingsHeight) /
+                            (4.4 + estimatedRows * 1.45))
                         .clamp(36.0, 112.0)
                         .toDouble();
                 final dealerRowWidth =
@@ -480,6 +508,7 @@ class UI extends StatelessWidget {
 
                           // Keep status centered and place bankroll/shoe details at the right.
                           _buildStatusAndBankroll(constraints.maxWidth),
+                          TableMarkings(width: availableWidth),
                           const SizedBox(height: 8),
 
                           // Player hands share a row on wide screens and stack on narrow ones.
